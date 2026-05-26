@@ -96,12 +96,24 @@ def run_simulation(deck_data: dict, combo_patterns: list, clump_rules: list, min
             if triggered:
                 stats[f'clump_{i}'] += 1
 
-        if plays >= 2:
-            stats['multi_play'] += 1
-
         tech_count = sum(1 for c in hand if 'Tech' in deck_data[c][1:])
-        if tech_count >= min_techs and plays >= (1 if min_techs == 0 else 2):
+        has_enough_techs = tech_count >= min_techs
+
+        # success_rate: chance de ver o "ingrediente principal"
+        #   min_techs=0 → 1+ plays
+        #   min_techs>0 → N+ techs (independente de plays)
+        if min_techs == 0:
+            stats['success'] += 1 if plays >= 1 else 0
+        else:
+            stats['success'] += 1 if has_enough_techs else 0
+
+        # good_hand_rate: tem o ingrediente principal + pelo menos 1 play
+        if has_enough_techs and plays >= 1:
             stats['good_hand'] += 1
+
+        # resilience_rate: tem o ingrediente principal + pelo menos 2 plays
+        if has_enough_techs and plays >= 2:
+            stats['resilience'] += 1
 
     clump_details = []
     for i, rule in enumerate(clump_rules):
@@ -117,8 +129,9 @@ def run_simulation(deck_data: dict, combo_patterns: list, clump_rules: list, min
         "deck_size": deck_size,
         "min_techs": min_techs,
         "sixth_card": sixth_card,
-        "success_rate": round(stats['good_hand'] / num_hands * 100, 2),
-        "resilience_rate": round(stats['multi_play'] / num_hands * 100, 2),
+        "success_rate": round(stats['success'] / num_hands * 100, 2),
+        "good_hand_rate": round(stats['good_hand'] / num_hands * 100, 2),
+        "resilience_rate": round(stats['resilience'] / num_hands * 100, 2),
         "dead_hand_rate": round(stats['dead_hand'] / num_hands * 100, 2),
         "clumps": clump_details,
     }

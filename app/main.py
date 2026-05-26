@@ -45,6 +45,7 @@ class SimulationResponse(BaseModel):
     min_techs: int
     sixth_card: bool
     success_rate: float
+    good_hand_rate: float
     resilience_rate: float
     dead_hand_rate: float
     clumps: list[ClumpDetail]
