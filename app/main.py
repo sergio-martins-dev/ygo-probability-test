@@ -1,4 +1,6 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from simulator import run_simulation
@@ -49,6 +51,11 @@ class SimulationResponse(BaseModel):
     sixth_card_used_rate: Optional[float] = None
 
 
+@app.get("/", include_in_schema=False)
+def root():
+    return FileResponse("static/index.html")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -91,3 +98,6 @@ def simulate_batch(req: SimulationRequest):
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
     return results
+
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
