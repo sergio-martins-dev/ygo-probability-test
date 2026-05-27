@@ -89,7 +89,9 @@ def run_simulation(deck_data: dict, combo_patterns: list, clump_rules: list, min
 
         is_any_clump = any(clumps.values())
 
-        if plays == 0 or is_any_clump:
+        # dead_hand: only when there are truly no plays available
+        # clump conflicts are tracked separately — they may or may not kill the hand
+        if plays == 0:
             stats['dead_hand'] += 1
 
         for i, triggered in clumps.items():
