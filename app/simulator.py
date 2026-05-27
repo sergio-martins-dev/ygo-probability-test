@@ -3,31 +3,34 @@ from collections import Counter
 
 
 def check_custom_clumps(hand_cards, card_data, clump_rules):
+    """
+    Avalia regras de clump contra a mão atual.
+    Cada regra é uma lista de condições:
+      - "Tag" ou "NomeDaCarta": pelo menos 1 carta na mão tem essa tag ou esse nome
+      - "!Tag" ou "!NomeDaCarta": nenhuma carta na mão tem essa tag ou esse nome
+    Todas as condições devem ser satisfeitas para o clump disparar.
+    """
+    # Constrói Counter com tags + nomes das cartas na mão
+    hand_tags = Counter()
+    for c in hand_cards:
+        hand_tags[c] += 1
+        for tag in card_data[c][1:]:
+            hand_tags[tag] += 1
+
     results = {}
     for i, rule in enumerate(clump_rules):
-        carta_a = rule[0]
-
-        # Formato: [CartaA, "!Tag"] — carta única + negação
-        if len(rule) == 2 and rule[1].startswith('!'):
-            if carta_a in hand_cards:
-                negacao = rule[1][1:]
-                has_negacao = any(negacao in card_data[c][1:] or negacao == c for c in hand_cards)
-                results[i] = not has_negacao
+        triggered = True
+        for condition in rule:
+            if condition.startswith('!'):
+                key = condition[1:]
+                if hand_tags[key] > 0:
+                    triggered = False
+                    break
             else:
-                results[i] = False
-
-        # Formato: [CartaA, CartaB] ou [CartaA, CartaB, "!Tag"]
-        else:
-            carta_b = rule[1]
-            if carta_a in hand_cards and carta_b in hand_cards:
-                if len(rule) > 2 and rule[2].startswith('!'):
-                    negacao = rule[2][1:]
-                    has_negacao = any(negacao in card_data[c][1:] or negacao == c for c in hand_cards)
-                    results[i] = not has_negacao
-                else:
-                    results[i] = True
-            else:
-                results[i] = False
+                if hand_tags[condition] == 0:
+                    triggered = False
+                    break
+        results[i] = triggered
 
     return results
 
@@ -39,9 +42,20 @@ def count_distinct_plays(hand_cards, card_data, combo_patterns):
         hand_tags.update(card_data[c][1:])
         hand_tags[c] += 1
 
+    ns_starter_found = False
     for card_name in hand_cards:
-        if 'Starter' in card_data[card_name][1:] or 'Extender' in card_data[card_name][1:]:
-            unique_plays.add(f"Source_{card_name}")
+        tags = card_data[card_name][1:]
+        is_starter   = 'Starter'       in tags
+        is_extender  = 'Extender'      in tags
+        is_ns        = 'Normal Summon' in tags
+        if is_starter or is_extender:
+            if is_starter and is_ns:
+                # Todos os Starters de Normal Summon disputam UM slot de invocação
+                ns_starter_found = True
+            else:
+                unique_plays.add(f"Source_{card_name}")
+    if ns_starter_found:
+        unique_plays.add("Source_NS_SLOT")
 
     for i, pattern in enumerate(combo_patterns):
         pattern_counts = Counter(pattern)
@@ -98,6 +112,11 @@ def run_simulation(deck_data: dict, combo_patterns: list, clump_rules: list, min
             if triggered:
                 stats[f'clump_{i}'] += 1
 
+        # Auto-clump de Normal Summon: 2+ cartas NS na mesma mão brigam pelo slot
+        ns_in_hand = sum(1 for c in hand if 'Normal Summon' in deck_data[c][1:])
+        if ns_in_hand >= 2:
+            stats['clump_ns'] += 1
+
         tech_count = sum(1 for c in hand if 'Tech' in deck_data[c][1:])
         has_enough_techs = tech_count >= min_techs
 
@@ -124,6 +143,15 @@ def run_simulation(deck_data: dict, combo_patterns: list, clump_rules: list, min
             "rule": rule,
             "count": count,
             "percentage": round(count / num_hands * 100, 4)
+        })
+
+    # Adiciona auto-clump NS no topo se o deck tiver cartas de Normal Summon
+    if any('Normal Summon' in data[1:] for data in deck_data.values()):
+        ns_count = stats['clump_ns']
+        clump_details.insert(0, {
+            "rule": ["Normal Summon", "Normal Summon"],
+            "count": ns_count,
+            "percentage": round(ns_count / num_hands * 100, 4)
         })
 
     result = {

@@ -244,9 +244,10 @@
         <select id="inp-iter"
                 class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-200
                        focus:outline-none focus:border-yellow-500">
+          <option value="1000" selected>1k</option>
           <option value="10000">10k</option>
           <option value="50000">50k</option>
-          <option value="100000" selected>100k</option>
+          <option value="100000">100k</option>
           <option value="500000">500k</option>
           <option value="1000000">1M</option>
         </select>
@@ -847,7 +848,7 @@ async function runSimulation() {
   if(!currentDeck) return;
   const btn=document.getElementById('btn-run'), err=document.getElementById('error-box');
   err.classList.add('hidden'); btn.disabled=true; btn.textContent='...'; setSimState('loading');
-  const iters=parseInt(document.getElementById('inp-iter').value)||100000;
+  const iters=parseInt(document.getElementById('inp-iter').value)||1000;
   try {
     const res=await fetch('/simulate/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_setup:currentDeck.deck_setup,combo_patterns:currentDeck.combo_patterns||[],clump_rules:currentDeck.clump_rules||[],min_techs:0,iterations:iters})});
     const json=await res.json(); if(!res.ok) throw new Error(json.detail||'Erro desconhecido');
@@ -925,7 +926,7 @@ function clumpsSection(clumps) {
 function renderDeckComposition(ds) {
   const tc={};let total=0;
   for(const[,d] of Object.entries(ds)){ const qty=d[0],tags=d.slice(1); total+=qty; const s=tags.includes('Starter'),x=tags.includes('Extender'); if(s&&x){tc['Starter/Extender']=(tc['Starter/Extender']||0)+qty;}else{for(const t of tags)tc[t]=(tc[t]||0)+qty;} }
-  const RO=['Starter','Extender','Starter/Extender','Tech','Brick','Normal Summon','NS'];
+  const RO=['Starter','Extender','Starter/Extender','Tech','Brick','Normal Summon'];
   const sorted=[...RO.filter(t=>tc[t]!==undefined),...Object.keys(tc).filter(t=>!RO.includes(t)).sort()];
   const pills=sorted.map(tag=>{const c=tagColor(tag); return `<div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full ${c.dot} shrink-0"></span><span class="${c.text} font-bold">${tc[tag]}</span><span class="text-slate-500 text-xs">${escHtml(tag)}</span></div>`;}).join('<span class="text-slate-700 hidden sm:block">|</span>');
   const el=document.getElementById('deck-composition');
