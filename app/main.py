@@ -130,12 +130,21 @@ _SECTION_HEADER   = re.compile(r"^(Monster|Spell|Trap|Extra|Side)s?$", re.IGNORE
 _CARD_LINE        = re.compile(r"^(\d+)x?\s+(.+)$")
 
 
+_QUOTE_STRIP = re.compile(r'^["""\'\']+|["""\'\']+$')
+
 @app.post("/decks/parse", response_model=ParseDeckResponse)
 def parse_deck(req: ParseDeckRequest):
-    """Parse raw YGO deck text into deck_setup format. Ignores Extra and Side deck."""
+    """Parse raw YGO deck text into deck_setup format. Ignores Extra and Side deck.
+    Supports both sectioned (Monster/Spell/Trap headers) and headerless plain lists."""
     deck_setup: dict = {}
     sections: dict   = {}
     current_section  = None
+
+    # Detect if the text has any section headers at all
+    has_headers = any(
+        _SECTION_HEADER.match(l.strip())
+        for l in req.text.splitlines() if l.strip()
+    )
 
     for raw_line in req.text.splitlines():
         line = raw_line.strip()
@@ -149,19 +158,21 @@ def parse_deck(req: ParseDeckRequest):
                 sections.setdefault(current_section, [])
             continue
 
-        if current_section is None or current_section.lower() in _IGNORED_SECTIONS:
+        # Skip ignored sections; if no headers, treat everything as main deck
+        if has_headers and (current_section is None or current_section.lower() in _IGNORED_SECTIONS):
             continue
 
         m_card = _CARD_LINE.match(line)
         if m_card:
             qty  = int(m_card.group(1))
-            name = m_card.group(2).strip()
-            # Se a carta já apareceu (duplicata no texto), soma a quantidade
+            name = _QUOTE_STRIP.sub('', m_card.group(2).strip())
+            section = current_section or "Main"
             if name in deck_setup:
                 deck_setup[name][0] += qty
             else:
                 deck_setup[name] = [qty]
-            sections[current_section].append(name)
+            sections.setdefault(section, [])
+            sections[section].append(name)
 
     card_count = sum(v[0] for v in deck_setup.values())
     return {"deck_setup": deck_setup, "card_count": card_count, "sections": sections}
