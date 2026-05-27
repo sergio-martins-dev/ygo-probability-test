@@ -1,3 +1,4 @@
+import re
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -102,3 +103,59 @@ def simulate_batch(req: SimulationRequest):
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# ──────────────────────────────────────
+# DECK PARSER
+# ──────────────────────────────────────
+
+class ParseDeckRequest(BaseModel):
+    text: str = Field(..., description="Raw YGO deck text with Monster/Spell/Trap/Extra/Side sections")
+
+
+class ParseDeckResponse(BaseModel):
+    deck_setup: dict
+    card_count: int
+    sections: dict
+
+
+_IGNORED_SECTIONS = {"extra", "side"}
+_SECTION_HEADER   = re.compile(r"^(Monster|Spell|Trap|Extra|Side)s?$", re.IGNORECASE)
+_CARD_LINE        = re.compile(r"^(\d+)x?\s+(.+)$")
+
+
+@app.post("/decks/parse", response_model=ParseDeckResponse)
+def parse_deck(req: ParseDeckRequest):
+    """Parse raw YGO deck text into deck_setup format. Ignores Extra and Side deck."""
+    deck_setup: dict = {}
+    sections: dict   = {}
+    current_section  = None
+
+    for raw_line in req.text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        m_section = _SECTION_HEADER.match(line)
+        if m_section:
+            current_section = m_section.group(1).capitalize()
+            if current_section.lower() not in _IGNORED_SECTIONS:
+                sections.setdefault(current_section, [])
+            continue
+
+        if current_section is None or current_section.lower() in _IGNORED_SECTIONS:
+            continue
+
+        m_card = _CARD_LINE.match(line)
+        if m_card:
+            qty  = int(m_card.group(1))
+            name = m_card.group(2).strip()
+            # Se a carta já apareceu (duplicata no texto), soma a quantidade
+            if name in deck_setup:
+                deck_setup[name][0] += qty
+            else:
+                deck_setup[name] = [qty]
+            sections[current_section].append(name)
+
+    card_count = sum(v[0] for v in deck_setup.values())
+    return {"deck_setup": deck_setup, "card_count": card_count, "sections": sections}

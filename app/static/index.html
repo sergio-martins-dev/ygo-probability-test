@@ -1,622 +1,935 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="bg-slate-950 text-slate-100">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>YGO Deck Simulator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spin { display: inline-block; animation: spin 1s linear infinite; }
-    textarea { font-family: 'Courier New', Courier, monospace; }
-    .bar { transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    .spinner  { animation: spin 0.8s linear infinite; }
+    .bar      { transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
+    ::-webkit-scrollbar       { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    .tag-chip { display:inline-flex; align-items:center; gap:0.25rem;
+                padding:0.125rem 0.5rem; border-radius:9999px;
+                font-size:0.75rem; font-weight:500; }
   </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen">
+<body class="min-h-screen bg-slate-950">
 
-  <!-- HEADER -->
-  <header class="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-slate-800">
-    <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center gap-3">
-      <span class="text-2xl">🃏</span>
+<!-- VIEW: DECK LIST -->
+<div id="view-deck-list">
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <div class="flex items-center justify-between mb-8 gap-4 flex-wrap">
       <div>
-        <h1 class="text-lg font-bold text-yellow-400 leading-none">YGO Deck Simulator</h1>
-        <p class="text-xs text-slate-500 mt-0.5">Monte Carlo deck consistency analysis</p>
+        <h1 class="text-2xl font-bold text-slate-100">YGO Deck Simulator</h1>
+        <p class="text-sm text-slate-500 mt-1">Monte Carlo deck consistency analysis</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="showImportJson()"
+                class="px-3 py-2 text-xs bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-slate-300">
+          Import .json
+        </button>
+        <button onclick="showDeckEditor(null)"
+                class="px-4 py-2 text-sm font-semibold bg-yellow-500 hover:bg-yellow-400 rounded-lg transition-colors text-slate-900">
+          + New Deck
+        </button>
       </div>
     </div>
-  </header>
+    <div id="decklist-empty" class="hidden text-center py-20">
+      <div class="text-5xl mb-4">🎴</div>
+      <p class="text-slate-400 text-lg mb-2">Nenhum deck cadastrado ainda</p>
+      <p class="text-slate-600 text-sm mb-6">Crie seu primeiro deck para comecar a simular</p>
+      <button onclick="showDeckEditor(null)"
+              class="px-6 py-3 bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-semibold rounded-xl transition-colors">
+        + Criar Primeiro Deck
+      </button>
+    </div>
+    <div id="decklist-cards" class="hidden grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+  </div>
+</div>
 
-  <!-- MAIN LAYOUT -->
-  <div class="max-w-screen-xl mx-auto px-4 py-5">
-    <div class="flex flex-col xl:flex-row gap-5">
+<!-- VIEW: DECK EDITOR -->
+<div id="view-deck-editor" class="hidden">
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <div class="flex items-center gap-4 mb-6">
+      <button onclick="showDeckList()" class="text-slate-400 hover:text-slate-200 transition-colors text-sm">
+        &larr; Voltar
+      </button>
+      <h2 id="editor-title" class="text-xl font-bold text-slate-100">Novo Deck</h2>
+    </div>
 
-      <!-- ─────────────── FORM ─────────────── -->
-      <aside class="xl:w-80 shrink-0 space-y-4">
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-4">
+    <!-- Step 1: Import -->
+    <div id="editor-step-import">
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-4">
+        <div>
+          <label class="text-xs text-slate-400 block mb-1.5 uppercase tracking-wider">Nome do Deck</label>
+          <input id="inp-deck-name" type="text" placeholder="Ex: Branded Despia"
+                 class="w-full bg-slate-900 border border-slate-600 rounded-xl px-3 py-2 text-sm text-slate-100
+                        placeholder-slate-600 focus:outline-none focus:border-yellow-500 transition-colors" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 block mb-1 uppercase tracking-wider">Cole o texto do deck</label>
+          <p class="text-xs text-slate-600 mb-2">Extra Deck e Side Deck sao ignorados automaticamente.</p>
+          <textarea id="inp-deck-text" rows="16"
+                    class="w-full bg-slate-900 border border-slate-600 rounded-xl px-3 py-2 text-sm
+                           text-slate-200 placeholder-slate-700 font-mono resize-y
+                           focus:outline-none focus:border-yellow-500 transition-colors leading-relaxed"
+                    placeholder="Monster&#10;3 Aluber the Jester of Despia&#10;Spell&#10;3 Branded in High Spirits&#10;..."></textarea>
+        </div>
+        <div id="import-error" class="hidden text-sm text-red-400 bg-red-950/30 border border-red-800/50 rounded-lg px-3 py-2"></div>
+        <button onclick="parseAndProceed()"
+                class="w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-semibold rounded-xl transition-colors">
+          Continuar &rarr;
+        </button>
+      </div>
+    </div>
 
-          <div class="flex items-center justify-between">
-            <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">⚙️ Configuration</h2>
-            <button onclick="loadExample()" class="text-xs text-yellow-500 hover:text-yellow-300 transition-colors">
-              + example
+    <!-- Step 2: Edit -->
+    <div id="editor-step-edit" class="hidden space-y-4">
+      <!-- Name Row -->
+      <div class="flex items-center gap-3">
+        <input id="inp-deck-name-2" type="text" placeholder="Nome do Deck"
+               class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm
+                      text-slate-100 focus:outline-none focus:border-yellow-500 transition-colors" />
+        <span id="editor-card-count" class="text-slate-500 text-sm shrink-0"></span>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex gap-1 bg-slate-800/60 border border-slate-700 rounded-xl p-1 w-fit">
+        <button id="etab-btn-deck"   onclick="switchEditorTab('deck')"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-slate-500">Deck</button>
+        <button id="etab-btn-tags"   onclick="switchEditorTab('tags')"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-slate-500">Tags</button>
+        <button id="etab-btn-combos" onclick="switchEditorTab('combos')"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-slate-500">Combos</button>
+        <button id="etab-btn-clumps" onclick="switchEditorTab('clumps')"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-slate-500">Clumps</button>
+      </div>
+
+      <!-- Tab: Deck -->
+      <div id="etab-deck" class="hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+          <!-- Filter bar -->
+          <div class="px-4 py-3 border-b border-slate-700 flex flex-wrap gap-1.5 items-center">
+            <button id="deck-filter-all" onclick="setDeckFilter(null)"
+                    class="px-3 py-1 rounded-lg text-xs font-medium transition-colors">Todas</button>
+            <div id="deck-filter-chips" class="flex flex-wrap gap-1.5"></div>
+          </div>
+          <div id="deck-card-list" class="divide-y divide-slate-700/50 max-h-[36rem] overflow-y-auto"></div>
+        </div>
+      </div>
+
+      <!-- Tab: Tags -->
+      <div id="etab-tags">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-visible">
+          <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between gap-2">
+            <h3 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Tags do Deck</h3>
+            <button onclick="addCustomTagPrompt()"
+                    class="text-xs text-yellow-500 hover:text-yellow-300 transition-colors">+ Custom Tag</button>
+          </div>
+          <div id="tag-grid" class="p-4 flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+
+      <!-- Tab: Combos -->
+      <div id="etab-combos" class="hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-700 flex items-start justify-between gap-2">
+            <div>
+              <h3 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Combo Patterns</h3>
+              <p class="text-xs text-slate-600 mt-0.5">Cada linha = 1 combo. Clique em + item para adicionar.</p>
+            </div>
+            <button onclick="addComboRow()" class="text-xs text-yellow-500 hover:text-yellow-300 transition-colors shrink-0 mt-0.5">
+              + Adicionar
             </button>
           </div>
-
-          <!-- Iterations -->
-          <div>
-            <label class="text-xs text-slate-400 block mb-1.5">Iterations</label>
-            <input id="inp-iter" type="number" value="100000" min="1000" max="10000000" step="10000"
-                   class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-sm
-                          focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/20
-                          transition-colors">
-          </div>
-
-          <!-- Deck Setup -->
-          <div>
-            <label class="text-xs text-slate-400 block mb-1.5">
-              Deck Setup <span class="text-slate-600">(JSON)</span>
-            </label>
-            <textarea id="inp-deck" rows="10"
-                      placeholder="{&quot;Card Name&quot;: [qty, &quot;Tag1&quot;, &quot;Tag2&quot;]}"
-                      class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-xs resize-y
-                             focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/20
-                             transition-colors leading-relaxed"></textarea>
-          </div>
-
-          <!-- Combo Patterns -->
-          <div>
-            <label class="text-xs text-slate-400 block mb-1.5">
-              Combo Patterns <span class="text-slate-600">(JSON, optional)</span>
-            </label>
-            <textarea id="inp-combos" rows="4"
-                      placeholder="[[&quot;Starter&quot;, &quot;Extender&quot;]]"
-                      class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-xs resize-y
-                             focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/20
-                             transition-colors leading-relaxed"></textarea>
-          </div>
-
-          <!-- Clump Rules -->
-          <div>
-            <label class="text-xs text-slate-400 block mb-1.5">
-              Clump Rules <span class="text-slate-600">(JSON, optional)</span>
-            </label>
-            <textarea id="inp-clumps" rows="3"
-                      placeholder="[[&quot;CardA&quot;, &quot;CardB&quot;], [&quot;CardC&quot;, &quot;!Tag&quot;]]"
-                      class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-xs resize-y
-                             focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/20
-                             transition-colors leading-relaxed"></textarea>
-          </div>
-
-          <!-- Button -->
-          <button id="btn-run" onclick="runSimulation()"
-                  class="w-full bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-600
-                         text-slate-900 font-bold rounded-xl py-3 text-sm
-                         transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-            ▶ Simulate
-          </button>
-
-          <!-- Error box -->
-          <div id="error-box" style="display:none"
-               class="bg-red-950 border border-red-800 text-red-300 text-xs rounded-xl p-3 leading-relaxed">
-          </div>
-
+          <div id="combo-rows" class="divide-y divide-slate-700/50"></div>
+          <div id="combo-empty" class="px-4 py-5 text-center text-slate-600 text-xs">Nenhum combo configurado</div>
         </div>
+      </div>
 
-        <!-- ── README ── -->
-        <details class="bg-slate-800 border border-slate-700 rounded-2xl">
-          <summary class="px-4 py-3 cursor-pointer text-xs font-semibold text-slate-300 hover:text-slate-100 transition-colors select-none uppercase tracking-wider">
-            📖 How it works
-          </summary>
-          <div class="px-4 pb-5 pt-1 space-y-5 text-xs text-slate-400">
-
+      <!-- Tab: Clumps -->
+      <div id="etab-clumps" class="hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+          <div class="px-4 py-3 border-b border-slate-700 flex items-start justify-between gap-2">
             <div>
-              <p class="text-slate-200 font-semibold mb-1.5">deck_setup</p>
-              <p class="mb-2">Each card entry maps its name to an array where the first element is the <span class="text-yellow-300">quantity</span>, followed by any number of <span class="text-yellow-300">tags</span>:</p>
-              <pre class="bg-slate-900 rounded-lg p-3 text-xs text-yellow-300 overflow-x-auto">"Card Name": [qty, "Tag1", "Tag2"]</pre>
-              <p class="mt-2">You can add as many custom tags as you like — tags are used to define combo patterns and clump rules.</p>
+              <h3 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Clump Rules</h3>
+              <p class="text-xs text-slate-600 mt-0.5">Cada linha = 1 regra. Items em laranja sao negados (!Tag).</p>
             </div>
-
-            <div>
-              <p class="text-slate-200 font-semibold mb-1.5">Reserved tags</p>
-              <ul class="space-y-2 ml-1">
-                <li class="flex gap-2">
-                  <code class="shrink-0 text-green-400 bg-green-950/50 px-1.5 py-0.5 rounded">Starter</code>
-                  <span>Opens a combo by itself. Typically a Normal Summon that enables a one-card combo (e.g. Aluber, Branded Fusion).</span>
-                </li>
-                <li class="flex gap-2">
-                  <code class="shrink-0 text-blue-400 bg-blue-950/50 px-1.5 py-0.5 rounded">Extender</code>
-                  <span>Continues or extends a combo already started. Can be a hand trap with an effect, a Called by the Grave, etc.</span>
-                </li>
-                <li class="flex gap-2">
-                  <code class="shrink-0 text-purple-400 bg-purple-950/50 px-1.5 py-0.5 rounded">Tech</code>
-                  <span>A situational tech card (hand traps, board breakers). Used by the <em>min_techs</em> metric columns.</span>
-                </li>
-              </ul>
-              <p class="mt-2 text-slate-500">A card can hold both <code class="text-green-400">Starter</code> and <code class="text-blue-400">Extender</code> tags simultaneously — that's perfectly valid.</p>
-            </div>
-
-            <div>
-              <p class="text-slate-200 font-semibold mb-1.5">NS tag</p>
-              <p>Use <code class="text-yellow-400">NS</code> as a custom tag to mark Normal Summon cards. It has no special engine behavior — it's just a tag like any other.</p>
-            </div>
-
-            <div>
-              <p class="text-slate-200 font-semibold mb-1.5">combo_patterns</p>
-              <p class="mb-2">A list of tag/card arrays. Each array represents a distinct combo that can be executed from the hand.</p>
-              <pre class="bg-slate-900 rounded-lg p-3 text-xs text-slate-300 overflow-x-auto">[
-  ["Starter"],          // any single Starter
-  ["TagA", "TagB"],     // combo needing both tags
-  ["SpecificCard"]      // exact card name also works
-]</pre>
-            </div>
-
-            <div>
-              <p class="text-slate-200 font-semibold mb-1.5">clump_rules</p>
-              <p class="mb-2">Pairs of cards/tags that are bad together. A clump triggers when both match in the same hand. Use <code class="text-red-400">!Tag</code> to negate — the clump triggers only if that tag is <em>absent</em>.</p>
-              <pre class="bg-slate-900 rounded-lg p-3 text-xs text-slate-300 overflow-x-auto">[
-  ["CardA", "CardB"],      // bad if both in hand
-  ["CardC", "!Extender"]   // bad if CardC + no Extender
-]</pre>
-            </div>
-
-            <div class="border-t border-slate-700 pt-4">
-              <p class="text-slate-200 font-semibold mb-2">Metrics explained</p>
-              <div class="space-y-2">
-                <div>
-                  <p class="text-slate-300 font-medium">✅ Success Rate</p>
-                  <ul class="ml-2 mt-0.5 space-y-0.5 text-slate-500">
-                    <li>0 techs → probability of seeing <strong class="text-slate-400">1+ plays</strong></li>
-                    <li>1 tech → probability of seeing <strong class="text-slate-400">1+ Tech cards</strong> (ignores plays)</li>
-                    <li>2 techs → probability of seeing <strong class="text-slate-400">2+ Tech cards</strong> (ignores plays)</li>
-                  </ul>
-                </div>
-                <div>
-                  <p class="text-slate-300 font-medium">🤝 Good Hand Rate</p>
-                  <ul class="ml-2 mt-0.5 space-y-0.5 text-slate-500">
-                    <li>0 techs → 1+ plays</li>
-                    <li>1 tech → 1+ techs <em>and</em> 1+ plays</li>
-                    <li>2 techs → 2+ techs <em>and</em> 1+ plays</li>
-                  </ul>
-                </div>
-                <div>
-                  <p class="text-slate-300 font-medium">🎯 Resilience Rate</p>
-                  <ul class="ml-2 mt-0.5 space-y-0.5 text-slate-500">
-                    <li>0 techs → 2+ plays</li>
-                    <li>1 tech → 1+ techs <em>and</em> 2+ plays</li>
-                    <li>2 techs → 2+ techs <em>and</em> 2+ plays</li>
-                  </ul>
-                </div>
-                <div>
-                  <p class="text-slate-300 font-medium">💀 Dead Hand Rate</p>
-                  <p class="ml-2 mt-0.5 text-slate-500">Hand with 0 plays <em>or</em> any clump triggered.</p>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </details>
-      </aside>
-
-      <!-- ─────────────── RESULTS ─────────────── -->
-      <main class="flex-1 min-w-0">
-
-        <!-- Empty state -->
-        <div id="state-empty" class="flex flex-col items-center justify-center h-80 text-slate-600">
-          <p class="text-5xl mb-4 opacity-30">🎴</p>
-          <p class="text-base font-medium">Configure your deck and click Simulate</p>
-          <p class="text-sm mt-1">Results will appear here</p>
-        </div>
-
-        <!-- Loading state -->
-        <div id="state-loading" style="display:none;" class="flex flex-col items-center justify-center h-80 text-slate-400">
-          <p class="spin text-4xl mb-4">⚙️</p>
-          <p class="text-base font-medium">Simulating...</p>
-          <p class="text-sm mt-1 text-slate-500">Please wait</p>
-        </div>
-
-        <!-- Results state -->
-        <div id="state-results" style="display:none;" class="space-y-4">
-
-          <!-- Stats bar -->
-          <div class="bg-slate-800 border border-slate-700 rounded-2xl px-5 py-3
-                      flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
-            <div class="flex items-center gap-1.5">
-              <span class="text-yellow-400">🃏</span>
-              <span id="s-deck" class="font-bold text-slate-200">–</span>
-              <span class="text-slate-500">cards in deck</span>
-            </div>
-            <span class="text-slate-700 hidden sm:block">|</span>
-            <div class="flex items-center gap-1.5">
-              <span class="text-slate-400">🔁</span>
-              <span id="s-hands" class="font-bold text-slate-200">–</span>
-              <span class="text-slate-500">hands simulated</span>
-            </div>
-            <span class="text-slate-700 hidden lg:block">|</span>
-            <div class="hidden lg:flex items-center gap-1 text-xs text-slate-500">
-              <span>3 columns:</span>
-              <span class="text-slate-400">General Consistency</span>
-              <span>/</span>
-              <span class="text-slate-400">1 Tech Card</span>
-              <span>/</span>
-              <span class="text-slate-400">2 Tech Cards</span>
-            </div>
-          </div>
-
-          <!-- Deck composition bar -->
-          <div id="deck-composition"
-               class="bg-slate-800 border border-slate-700 rounded-2xl px-5 py-3
-                      flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
-          </div>
-
-          <!-- Tabs -->
-          <div class="flex border-b border-slate-700">
-            <button id="tab-5" onclick="switchTab('5')"
-                    class="px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors text-yellow-400 border-yellow-400">
-              🎴 5-card hand
-            </button>
-            <button id="tab-6" onclick="switchTab('6')"
-                    class="px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors text-slate-400 hover:text-slate-200 border-transparent">
-              🃏 6-card hand <small class="text-xs text-slate-600 ml-1">(if playable)</small>
+            <button onclick="addClumpRow()" class="text-xs text-yellow-500 hover:text-yellow-300 transition-colors shrink-0 mt-0.5">
+              + Adicionar
             </button>
           </div>
-
-          <!-- Hand 5 panel -->
-          <div id="panel-5" class="space-y-4">
-            <div id="grid-5" class="grid grid-cols-1 sm:grid-cols-3 gap-4"></div>
-            <div id="clumps-5"></div>
-          </div>
-
-          <!-- Hand 6 panel -->
-          <div id="panel-6" style="display:none" class="space-y-4">
-            <div id="grid-6" class="grid grid-cols-1 sm:grid-cols-3 gap-4"></div>
-            <div id="clumps-6"></div>
-          </div>
-
+          <div id="clump-rows" class="divide-y divide-slate-700/50"></div>
+          <div id="clump-empty" class="px-4 py-5 text-center text-slate-600 text-xs">Nenhuma regra configurada</div>
         </div>
-      </main>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex gap-3 pt-1">
+        <button onclick="saveDeck()"
+                class="flex-1 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-semibold rounded-xl transition-colors">
+          Salvar Deck
+        </button>
+        <button onclick="downloadDeckJson()"
+                class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl transition-colors text-sm">
+          Download .json
+        </button>
+      </div>
+      <div id="save-feedback" class="hidden text-sm text-center py-2"></div>
     </div>
   </div>
+</div>
+
+<!-- TAG DROPDOWN (fixed, positioned by JS) -->
+<div id="tag-dropdown"
+     class="hidden fixed z-40 bg-slate-800 border border-slate-600 rounded-2xl shadow-2xl"
+     style="width:320px;max-height:440px">
+  <div class="px-3 pt-3 pb-2 border-b border-slate-700">
+    <div class="flex items-center justify-between mb-2">
+      <span id="td-tag-label" class="text-sm font-semibold text-slate-200"></span>
+      <div class="flex gap-2 items-center">
+        <button onclick="tdSelectAll()" class="text-xs text-slate-400 hover:text-slate-200 transition-colors">Todos</button>
+        <button onclick="tdClearAll()"  class="text-xs text-slate-400 hover:text-slate-200 transition-colors">Limpar</button>
+        <button onclick="closeTagDropdown()" class="text-slate-500 hover:text-slate-300 text-base leading-none ml-1">&times;</button>
+      </div>
+    </div>
+    <input id="td-search" type="text" placeholder="Filtrar cartas..." oninput="renderTagDropdownList()"
+           class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs
+                  text-slate-200 placeholder-slate-600 focus:outline-none focus:border-yellow-500" />
+  </div>
+  <div id="td-list" class="overflow-y-auto" style="max-height:296px"></div>
+  <div class="px-3 py-2 border-t border-slate-700 text-right">
+    <span id="td-count" class="text-xs text-slate-500"></span>
+  </div>
+</div>
+
+<!-- PICKER MODAL (Combos & Clumps) -->
+<div id="modal-picker"
+     class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-sm">
+    <div class="px-4 pt-4 pb-3 border-b border-slate-700">
+      <div class="flex items-center justify-between mb-3">
+        <h3 id="picker-title" class="font-semibold text-slate-200 text-sm"></h3>
+        <button onclick="closePicker()" class="text-slate-500 hover:text-slate-300 text-lg leading-none">&times;</button>
+      </div>
+      <div id="picker-tag-chips" class="flex flex-wrap gap-1.5 mb-3"></div>
+      <input id="picker-search" type="text" placeholder="Buscar carta..." oninput="renderPickerList()"
+             class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs
+                    text-slate-200 placeholder-slate-600 focus:outline-none focus:border-yellow-500" />
+    </div>
+    <div id="picker-list" class="overflow-y-auto divide-y divide-slate-700/50" style="max-height:280px"></div>
+  </div>
+</div>
+
+<!-- VIEW: SIMULATE -->
+<div id="view-simulate" class="hidden">
+  <div class="max-w-5xl mx-auto px-4 py-8">
+    <div class="flex items-start justify-between mb-6 gap-4 flex-wrap">
+      <div class="flex items-center gap-4">
+        <button onclick="showDeckList()"
+                class="text-slate-400 hover:text-slate-200 transition-colors text-sm shrink-0">
+          &larr; Decks
+        </button>
+        <div>
+          <h2 id="sim-deck-name" class="text-xl font-bold text-slate-100"></h2>
+          <p class="text-xs text-slate-500 mt-0.5">Monte Carlo deck consistency analysis</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <label class="text-xs text-slate-500">Iteracoes</label>
+        <select id="inp-iter"
+                class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-200
+                       focus:outline-none focus:border-yellow-500">
+          <option value="10000">10k</option>
+          <option value="50000">50k</option>
+          <option value="100000" selected>100k</option>
+          <option value="500000">500k</option>
+          <option value="1000000">1M</option>
+        </select>
+        <button id="btn-run" onclick="runSimulation()"
+                class="px-4 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-slate-900 font-semibold
+                       rounded-lg text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          Simular
+        </button>
+      </div>
+    </div>
+
+    <div id="error-box"
+         class="hidden mb-4 text-sm text-red-400 bg-red-950/30 border border-red-800/50 rounded-xl px-4 py-3"></div>
+
+    <div id="sim-stats" class="hidden flex items-center gap-2 text-xs text-slate-500 mb-3">
+      <span>Deck: <strong id="s-deck" class="text-slate-300"></strong> cards</span>
+      <span class="text-slate-700">&bull;</span>
+      <span><strong id="s-hands" class="text-slate-300"></strong> maos</span>
+    </div>
+
+    <div id="deck-composition"
+         class="hidden flex flex-wrap items-center gap-x-4 gap-y-2 text-sm bg-slate-800/60
+                border border-slate-700 rounded-xl px-4 py-2.5 mb-6"></div>
+
+    <div id="sim-loading" class="hidden flex flex-col items-center justify-center py-20 gap-3">
+      <div class="w-8 h-8 border-2 border-slate-600 border-t-yellow-400 rounded-full spinner"></div>
+      <span class="text-sm text-slate-500">Simulando...</span>
+    </div>
+
+    <div id="sim-results" class="hidden">
+      <div class="flex gap-1 mb-4 bg-slate-800/50 border border-slate-700 rounded-xl p-1 w-fit">
+        <button id="tab-btn-5" onclick="switchTab('5')"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">
+          Hand 5
+        </button>
+        <button id="tab-btn-6" onclick="switchTab('6')"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">
+          Hand 6 (if playable)
+        </button>
+      </div>
+      <div id="tab-5">
+        <div id="grid-5" class="grid gap-3 sm:grid-cols-3 mb-4"></div>
+        <div id="clumps-5"></div>
+      </div>
+      <div id="tab-6" class="hidden">
+        <div id="grid-6" class="grid gap-3 sm:grid-cols-3 mb-4"></div>
+        <div id="clumps-6"></div>
+      </div>
+    </div>
+
+    <div id="sim-empty" class="flex flex-col items-center gap-3 py-16 text-slate-600">
+      <span class="text-4xl">&#x1F3B4;</span>
+      <span class="text-sm">Clique em Simular para comecar</span>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Import JSON -->
+<div id="modal-import-json"
+     class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+  <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-md space-y-4">
+    <h3 class="font-semibold text-slate-200">Importar Deck (.json)</h3>
+    <p class="text-xs text-slate-500">Selecione um arquivo .json exportado anteriormente.</p>
+    <input type="file" id="inp-import-file" accept=".json"
+           class="text-sm text-slate-400
+                  file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0
+                  file:bg-slate-700 file:text-slate-300 hover:file:bg-slate-600 file:cursor-pointer" />
+    <div id="import-json-error"
+         class="hidden text-sm text-red-400 bg-red-950/30 border border-red-800 rounded-lg px-3 py-2"></div>
+    <div class="flex gap-2">
+      <button onclick="closeImportJson()"
+              class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-sm text-slate-300 transition-colors">
+        Cancelar
+      </button>
+      <button onclick="doImportJson()"
+              class="flex-1 py-2 bg-yellow-500 hover:bg-yellow-400 rounded-xl text-sm font-semibold text-slate-900 transition-colors">
+        Importar
+      </button>
+    </div>
+  </div>
+</div>
 
 <script>
-/* ──────────────────────────────────────
-   STATE MANAGEMENT
-────────────────────────────────────── */
-function setState(s) {
-  document.getElementById('state-empty').style.display   = s === 'empty'   ? 'flex'  : 'none';
-  document.getElementById('state-loading').style.display = s === 'loading' ? 'flex'  : 'none';
-  document.getElementById('state-results').style.display = s === 'results' ? 'block' : 'none';
+/* STORAGE */
+const STORAGE_KEY = 'ygo_decks';
+function loadDecks() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+  catch { return []; }
 }
+function saveDecks(decks) { localStorage.setItem(STORAGE_KEY, JSON.stringify(decks)); }
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
-/* ──────────────────────────────────────
-   TABS
-────────────────────────────────────── */
-function switchTab(n) {
-  ['5', '6'].forEach(t => {
-    const active = t === n;
-    document.getElementById(`tab-${t}`).className =
-      'px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ' +
-      (active ? 'text-yellow-400 border-yellow-400'
-              : 'text-slate-400 hover:text-slate-200 border-transparent');
-    document.getElementById(`panel-${t}`).style.display = active ? 'block' : 'none';
-  });
-}
+/* TAG COLORS */
+const TAG_COLOR_MAP = {
+  'Starter':         { dot:'bg-green-400',  text:'text-green-400',  chip:'bg-green-950/60 text-green-400 border border-green-800/50'   },
+  'Extender':        { dot:'bg-blue-400',   text:'text-blue-400',   chip:'bg-blue-950/60 text-blue-400 border border-blue-800/50'      },
+  'Starter/Extender':{ dot:'bg-teal-400',   text:'text-teal-400',   chip:'bg-teal-950/60 text-teal-400 border border-teal-800/50'      },
+  'Tech':            { dot:'bg-purple-400', text:'text-purple-400', chip:'bg-purple-950/60 text-purple-400 border border-purple-800/50' },
+  'Brick':           { dot:'bg-red-400',    text:'text-red-400',    chip:'bg-red-950/60 text-red-400 border border-red-800/50'         },
+  'Normal Summon':   { dot:'bg-yellow-400', text:'text-yellow-400', chip:'bg-yellow-950/60 text-yellow-400 border border-yellow-800/50' },
+  'NS':              { dot:'bg-yellow-400', text:'text-yellow-400', chip:'bg-yellow-950/60 text-yellow-400 border border-yellow-800/50' },
+};
+const FALLBACK = { dot:'bg-slate-500', text:'text-slate-400', chip:'bg-slate-700 text-slate-300 border border-slate-600' };
+function tagColor(t) { return TAG_COLOR_MAP[t] || FALLBACK; }
 
-/* ──────────────────────────────────────
-   COLOR HELPERS
-────────────────────────────────────── */
-function colors(val, type) {
-  const ok  = type === 'dead' ? val <= 10 : val >= 80;
-  const mid = type === 'dead' ? val <= 20 : val >= 60;
-  if (ok)  return { text: 'text-emerald-400', bar: 'bg-emerald-500' };
-  if (mid) return { text: 'text-yellow-400',  bar: 'bg-yellow-500'  };
-  return         { text: 'text-red-400',      bar: 'bg-red-500'     };
-}
+/* NAVIGATION */
+const ALL_VIEWS = ['view-deck-list','view-deck-editor','view-simulate'];
+function showView(id) { ALL_VIEWS.forEach(v => document.getElementById(v).classList.toggle('hidden', v!==id)); }
 
-/* ──────────────────────────────────────
-   METRIC CARD
-────────────────────────────────────── */
-function metricCard(level, data) {
-  const titles      = ['General Consistency', '1 Tech Card', '2 Tech Cards'];
-  const successDesc = ['1+ plays',            '1+ tech cards',       '2+ tech cards'];
-  const goodDesc    = ['1+ plays',            '1+ techs + 1+ plays', '2+ techs + 1+ plays'];
-  const resDesc     = ['2+ plays',            '1+ techs + 2+ plays', '2+ techs + 2+ plays'];
+/* DECK LIST */
+function showDeckList() { renderDeckList(); showView('view-deck-list'); }
 
-  const sc = colors(data.success_rate,    'success');
-  const gc = colors(data.good_hand_rate,  'success');
-  const rc = colors(data.resilience_rate, 'success');
-  const dc = colors(data.dead_hand_rate,  'dead');
+function renderDeckList() {
+  const decks = loadDecks();
+  const empty = document.getElementById('decklist-empty');
+  const grid  = document.getElementById('decklist-cards');
+  if (!decks.length) { empty.classList.remove('hidden'); grid.classList.add('hidden'); return; }
+  empty.classList.add('hidden'); grid.classList.remove('hidden');
 
-  function row(emoji, label, sublabel, val, c) {
+  grid.innerHTML = decks.map(deck => {
+    const total  = Object.values(deck.deck_setup).reduce((a,d)=>a+d[0],0);
+    const tagSet = new Set();
+    Object.values(deck.deck_setup).forEach(d=>d.slice(1).forEach(t=>tagSet.add(t)));
+    const pills  = [...tagSet].slice(0,6).map(t=>`<span class="text-xs ${tagColor(t).text}">${escHtml(t)}</span>`).join('<span class="text-slate-700 mx-0.5">&middot;</span>');
+    const more   = tagSet.size>6 ? `<span class="text-slate-600 text-xs">+${tagSet.size-6}</span>` : '';
     return `
-      <div>
-        <div class="flex items-end justify-between mb-0.5">
-          <div>
-            <span class="text-xs text-slate-300">${emoji} ${label}</span>
-            <div class="text-[10px] text-slate-500 leading-tight">${sublabel}</div>
-          </div>
-          <span class="text-2xl font-bold leading-none ${c.text} ml-2 shrink-0">${val}%</span>
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex flex-col gap-3 hover:border-slate-600 transition-colors">
+        <div class="flex items-start justify-between gap-2">
+          <h3 class="font-semibold text-slate-100 text-sm leading-tight">${escHtml(deck.name)}</h3>
+          <span class="text-xs text-slate-500 shrink-0">${total} cartas</span>
         </div>
-        <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden mt-1.5">
-          <div class="h-full ${c.bar} bar rounded-full" style="width:0" data-w="${Math.min(val, 100)}"></div>
-        </div>
-      </div>`;
-  }
-
-  const sixthRow = data.sixth_card_used_rate != null ? `
-    <div class="pt-3 border-t border-slate-600/60">
-      <div class="flex items-end justify-between mb-0.5">
-        <div>
-          <span class="text-xs text-slate-300">🎲 6th card kept</span>
-          <div class="text-[10px] text-slate-500">sixth was playable</div>
-        </div>
-        <span class="text-2xl font-bold leading-none text-sky-400 ml-2 shrink-0">${data.sixth_card_used_rate}%</span>
-      </div>
-      <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden mt-1.5">
-        <div class="h-full bg-sky-400 bar rounded-full" style="width:0"
-             data-w="${Math.min(data.sixth_card_used_rate, 100)}"></div>
-      </div>
-    </div>` : '';
-
-  return `
-    <div class="bg-slate-800 border border-slate-700 hover:border-slate-500
-                rounded-2xl p-4 flex flex-col gap-3.5 transition-colors duration-200">
-      <div class="text-center">
-        <span class="text-sm font-bold text-slate-100">${titles[level]}</span>
-      </div>
-      ${row('✅', 'Success Rate', successDesc[level], data.success_rate, sc)}
-      ${row('🤝', 'Good Hand',    goodDesc[level],    data.good_hand_rate, gc)}
-      ${row('🎯', 'Resilience',   resDesc[level],     data.resilience_rate, rc)}
-      ${row('💀', 'Dead Hand',    'no plays or clump', data.dead_hand_rate, dc)}
-      ${sixthRow}
-    </div>`;
-}
-
-/* ──────────────────────────────────────
-   CLUMPS SECTION
-────────────────────────────────────── */
-function clumpsSection(clumps) {
-  if (!clumps?.length) return '';
-  const maxP = Math.max(...clumps.map(c => c.percentage), 0.1);
-
-  const rows = clumps.map(c => {
-    const label = c.rule
-      .map(r => r.startsWith('!')
-        ? `<span class="text-red-400">no ${r.slice(1)}</span>`
-        : `<span class="text-slate-200">${r}</span>`)
-      .join('<span class="mx-1 text-slate-600">+</span>');
-
-    const barW = (c.percentage / maxP * 100).toFixed(1);
-    const high = c.percentage > 10;
-    const mid  = c.percentage > 5;
-    const barC = high ? 'bg-red-500'   : mid ? 'bg-yellow-500' : 'bg-sky-500';
-    const pctC = high ? 'text-red-400' : mid ? 'text-yellow-400' : 'text-sky-400';
-
-    return `
-      <div class="flex items-center gap-3 py-2.5 border-b border-slate-700/50 last:border-0">
-        <div class="flex-1 min-w-0">
-          <div class="text-xs flex flex-wrap gap-0.5 mb-1.5">${label}</div>
-          <div class="h-1 bg-slate-700 rounded-full overflow-hidden">
-            <div class="h-full ${barC} bar rounded-full" style="width:0" data-w="${barW}"></div>
-          </div>
-        </div>
-        <div class="text-right shrink-0">
-          <div class="text-sm font-bold ${pctC}">${c.percentage}%</div>
-          <div class="text-xs text-slate-500">${c.count.toLocaleString('en-US')} hands</div>
+        <div class="flex flex-wrap gap-1 min-h-5 items-center">${pills||'<span class="text-slate-700 text-xs">sem tags</span>'}${more}</div>
+        <div class="flex gap-2 mt-auto pt-1">
+          <button onclick="startSimulate('${deck.id}')"
+                  class="flex-1 py-1.5 bg-yellow-500 hover:bg-yellow-400 text-slate-900 text-xs font-semibold rounded-lg transition-colors">
+            &#9654; Simular
+          </button>
+          <button onclick="showDeckEditor('${deck.id}')"
+                  class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg transition-colors">
+            Editar
+          </button>
+          <button onclick="confirmDeleteDeck('${deck.id}')"
+                  class="px-3 py-1.5 bg-slate-700 hover:bg-red-900/60 text-slate-400 hover:text-red-400 text-xs rounded-lg transition-colors">
+            Del
+          </button>
         </div>
       </div>`;
   }).join('');
-
-  return `
-    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4">
-      <h3 class="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-3">
-        ⚠️ Clumps &amp; Conflicts
-      </h3>
-      ${rows}
-    </div>`;
 }
 
-/* ──────────────────────────────────────
-   DECK COMPOSITION BANNER
-────────────────────────────────────── */
-function renderDeckComposition(deckSetup) {
-  const tagCounts = {};
-  let total = 0;
+function confirmDeleteDeck(id) {
+  if (!confirm('Excluir este deck?')) return;
+  saveDecks(loadDecks().filter(d=>d.id!==id));
+  renderDeckList();
+}
 
-  for (const [, data] of Object.entries(deckSetup)) {
-    const qty  = data[0];
-    const tags = data.slice(1);
-    total += qty;
+/* DECK EDITOR STATE */
+let editState = null;
 
-    // Cards com Starter E Extender entram no grupo combinado, não em ambos separados
-    const isStarter  = tags.includes('Starter');
-    const isExtender = tags.includes('Extender');
-    if (isStarter && isExtender) {
-      tagCounts['Starter/Extender'] = (tagCounts['Starter/Extender'] || 0) + qty;
-    } else {
-      for (const tag of tags) {
-        tagCounts[tag] = (tagCounts[tag] || 0) + qty;
-      }
-    }
+function showDeckEditor(deckId) {
+  const existing = deckId ? loadDecks().find(d=>d.id===deckId) : null;
+  if (existing) {
+    editState = JSON.parse(JSON.stringify(existing));
+    if (!editState.custom_tags) editState.custom_tags = [];
+    document.getElementById('editor-title').textContent = 'Editar Deck';
+    document.getElementById('editor-step-import').classList.add('hidden');
+    document.getElementById('editor-step-edit').classList.remove('hidden');
+    document.getElementById('inp-deck-name-2').value = existing.name;
+    renderTagGrid(); renderComboRows(); renderClumpRows(); switchEditorTab('deck');
+  } else {
+    editState = { id:null, name:'', deck_setup:{}, combo_patterns:[], clump_rules:[], custom_tags:[] };
+    document.getElementById('editor-title').textContent = 'Novo Deck';
+    document.getElementById('editor-step-import').classList.remove('hidden');
+    document.getElementById('editor-step-edit').classList.add('hidden');
+    document.getElementById('inp-deck-name').value = '';
+    document.getElementById('inp-deck-text').value = '';
+    document.getElementById('import-error').classList.add('hidden');
   }
-
-  // Cores fixas para tags reservadas; demais usam slate
-  const RESERVED_COLORS = {
-    'Starter':          { dot: 'bg-green-400',  text: 'text-green-400'  },
-    'Extender':         { dot: 'bg-blue-400',   text: 'text-blue-400'   },
-    'Starter/Extender': { dot: 'bg-teal-400',   text: 'text-teal-400'   },
-    'Tech':             { dot: 'bg-purple-400', text: 'text-purple-400' },
-    'Brick':            { dot: 'bg-red-400',    text: 'text-red-400'    },
-    'NS':               { dot: 'bg-yellow-400', text: 'text-yellow-400' },
-  };
-
-  const RESERVED_ORDER = ['Starter', 'Extender', 'Starter/Extender', 'Tech', 'Brick', 'NS'];
-  const reserved = RESERVED_ORDER.filter(t => tagCounts[t] !== undefined);
-  const custom   = Object.keys(tagCounts).filter(t => !RESERVED_ORDER.includes(t)).sort();
-  const sorted   = [...reserved, ...custom];
-
-  const pills = sorted.map(tag => {
-    const c = RESERVED_COLORS[tag] || { dot: 'bg-slate-500', text: 'text-slate-400' };
-    return `
-      <div class="flex items-center gap-1.5">
-        <span class="w-2 h-2 rounded-full ${c.dot} shrink-0"></span>
-        <span class="${c.text} font-bold">${tagCounts[tag]}</span>
-        <span class="text-slate-500 text-xs">${tag}</span>
-      </div>`;
-  }).join('<span class="text-slate-700 hidden sm:block">|</span>');
-
-  document.getElementById('deck-composition').innerHTML = `
-    <div class="flex items-center gap-1.5 shrink-0">
-      <span class="text-slate-400">📊</span>
-      <span class="font-bold text-slate-200">${total}</span>
-      <span class="text-slate-500">total</span>
-    </div>
-    <span class="text-slate-700 hidden sm:block">|</span>
-    ${pills}`;
+  document.getElementById('save-feedback').classList.add('hidden');
+  showView('view-deck-editor');
 }
 
-/* ──────────────────────────────────────
-   ANIMATE PROGRESS BARS
-────────────────────────────────────── */
-function animateBars() {
-  requestAnimationFrame(() => {
-    document.querySelectorAll('.bar[data-w]').forEach(el => {
-      requestAnimationFrame(() => { el.style.width = el.dataset.w + '%'; });
-    });
+/* STEP 1: PARSE */
+async function parseAndProceed() {
+  const name   = document.getElementById('inp-deck-name').value.trim();
+  const text   = document.getElementById('inp-deck-text').value.trim();
+  const errBox = document.getElementById('import-error');
+  errBox.classList.add('hidden');
+  if (!text) { errBox.textContent='Cole o texto do deck antes de continuar.'; errBox.classList.remove('hidden'); return; }
+  try {
+    const res  = await fetch('/decks/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.detail||'Erro ao processar deck');
+    if (!json.card_count) { errBox.textContent='Nenhuma carta encontrada. Verifique o formato.'; errBox.classList.remove('hidden'); return; }
+    editState.deck_setup=json.deck_setup; editState.name=name||'Meu Deck';
+    editState.combo_patterns=[]; editState.clump_rules=[]; editState.custom_tags=editState.custom_tags||[];
+    document.getElementById('inp-deck-name-2').value=editState.name;
+    renderTagGrid(); renderComboRows(); renderClumpRows(); switchEditorTab('deck');
+    document.getElementById('editor-step-import').classList.add('hidden');
+    document.getElementById('editor-step-edit').classList.remove('hidden');
+  } catch(e) { errBox.textContent=e.message; errBox.classList.remove('hidden'); }
+}
+
+/* =========================================================
+   EDITOR TABS
+   ========================================================= */
+const EDITOR_TABS = ['deck','tags','combos','clumps'];
+function switchEditorTab(tab) {
+  EDITOR_TABS.forEach(t => {
+    document.getElementById('etab-'+t).classList.toggle('hidden', t!==tab);
+    const b = document.getElementById('etab-btn-'+t);
+    b.classList.toggle('bg-slate-700',   t===tab);
+    b.classList.toggle('text-slate-100', t===tab);
+    b.classList.toggle('text-slate-500', t!==tab);
+  });
+  closeTagDropdown();
+  if (tab === 'deck') renderDeckTab();
+}
+
+/* =========================================================
+   DECK TAB
+   ========================================================= */
+let deckFilterTag = null;
+
+function setDeckFilter(tag) {
+  deckFilterTag = tag;
+  renderDeckTab();
+}
+
+function renderDeckTab() {
+  const tags  = getAllTags();
+  const total = Object.keys(editState.deck_setup).length;
+
+  // Update "Todas" button style
+  const allBtn = document.getElementById('deck-filter-all');
+  allBtn.className = 'px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ' +
+    (deckFilterTag === null
+      ? 'bg-slate-200 text-slate-900'
+      : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700 hover:text-slate-200');
+
+  // Render filter chips
+  document.getElementById('deck-filter-chips').innerHTML = tags.map(tag => {
+    const c      = tagColor(tag);
+    const active = deckFilterTag === tag;
+    const count  = getTagCardCount(tag);
+    return '<button onclick=\'setDeckFilter(' + JSON.stringify(tag) + ')\'' +
+           ' class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer ' +
+           (active ? c.chip : 'bg-slate-700/40 text-slate-500 border-slate-700 hover:opacity-80') + '">' +
+           '<span class="w-1.5 h-1.5 rounded-full ' + c.dot + '"></span>' +
+           escHtml(tag) + ' <span class="opacity-60">' + count + '</span>' +
+           '</button>';
+  }).join('');
+
+  // Filter entries
+  const entries = Object.entries(editState.deck_setup).filter(([,d]) =>
+    deckFilterTag === null || d.slice(1).includes(deckFilterTag)
+  );
+
+  document.getElementById('deck-card-list').innerHTML = entries.length === 0
+    ? '<div class="px-4 py-6 text-center text-slate-600 text-xs">Nenhuma carta com essa tag</div>'
+    : entries.map(([name, data]) => {
+        const qty  = data[0];
+        const tags = data.slice(1);
+        const chips = tags.map(t => {
+          const c = tagColor(t);
+          return '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs border ' + c.chip + '">' +
+                 '<span class="w-1 h-1 rounded-full ' + c.dot + '"></span>' + escHtml(t) + '</span>';
+        }).join('');
+        return '<div class="flex items-start gap-3 px-4 py-3 hover:bg-slate-700/30 transition-colors">' +
+          '<span class="text-xs font-bold text-slate-500 w-6 text-right shrink-0 mt-0.5">' + qty + 'x</span>' +
+          '<div class="flex-1 min-w-0">' +
+            '<div class="text-sm text-slate-200 leading-snug truncate">' + escHtml(name) + '</div>' +
+            (chips ? '<div class="flex flex-wrap gap-1 mt-1.5">' + chips + '</div>' : '') +
+          '</div>' +
+          '</div>';
+      }).join('');
+}
+
+/* =========================================================
+   TAG GRID
+   ========================================================= */
+const DEFAULT_TAGS = ['Starter','Extender','Tech','Brick','Normal Summon'];
+
+function getAllTags() {
+  const set = new Set(DEFAULT_TAGS);
+  (editState.custom_tags || []).forEach(t => set.add(t));
+  Object.values(editState.deck_setup).forEach(d => d.slice(1).forEach(t => set.add(t)));
+  return [...set];
+}
+
+function getTagCardCount(tag) {
+  return Object.values(editState.deck_setup).filter(d => d.slice(1).includes(tag)).length;
+}
+
+function renderTagGrid() {
+  const tags  = getAllTags();
+  const total = Object.keys(editState.deck_setup).length;
+  const totalCards = Object.values(editState.deck_setup).reduce((a,d)=>a+d[0], 0);
+  document.getElementById('editor-card-count').textContent = totalCards + ' cartas';
+  document.getElementById('tag-grid').innerHTML = tags.map(tag => {
+    const count    = getTagCardCount(tag);
+    const c        = tagColor(tag);
+    const isCustom = !DEFAULT_TAGS.includes(tag);
+    const btnId    = 'tgbtn-' + tag.replace(/[^a-z0-9]/gi,'_');
+    return '<div class="relative flex items-center">' +
+      '<button id="' + btnId + '" onclick=\'openTagDropdown(' + JSON.stringify(tag) + ',this)\'' +
+              ' class="flex items-center gap-2 px-3 py-2 rounded-xl border transition-all cursor-pointer ' +
+              (count>0 ? c.chip : 'bg-slate-700/50 text-slate-500 border-slate-700') + ' hover:opacity-90">' +
+        '<span class="w-2 h-2 rounded-full shrink-0 ' + c.dot + '"></span>' +
+        '<span class="text-sm font-medium">' + escHtml(tag) + '</span>' +
+        '<span class="text-xs opacity-60">' + count + '/' + total + '</span>' +
+      '</button>' +
+      (isCustom ? '<span onclick=\'removeCustomTag(' + JSON.stringify(tag) + ')\'' +
+                 ' class="ml-1 text-slate-600 hover:text-red-400 cursor-pointer text-base leading-none shrink-0" title="Remover">&times;</span>' : '') +
+      '</div>';
+  }).join('');
+}
+
+/* =========================================================
+   TAG DROPDOWN
+   ========================================================= */
+let activeDropdownTag = null;
+
+function openTagDropdown(tag, btn) {
+  const dd = document.getElementById('tag-dropdown');
+  if (activeDropdownTag === tag) { closeTagDropdown(); return; }
+  activeDropdownTag = tag;
+  document.getElementById('td-tag-label').textContent = tag;
+  document.getElementById('td-search').value = '';
+  renderTagDropdownList();
+  const rect = btn.getBoundingClientRect();
+  const ddW  = 320;
+  let left   = rect.left;
+  if (left + ddW > window.innerWidth - 8) left = window.innerWidth - ddW - 8;
+  let top    = rect.bottom + 6;
+  if (top + 440 > window.innerHeight) top = Math.max(8, rect.top - 440 - 6);
+  dd.style.left = left + 'px';
+  dd.style.top  = top  + 'px';
+  dd.classList.remove('hidden');
+}
+
+function closeTagDropdown() {
+  activeDropdownTag = null;
+  document.getElementById('tag-dropdown').classList.add('hidden');
+}
+
+function renderTagDropdownList() {
+  if (!activeDropdownTag) return;
+  const q       = document.getElementById('td-search').value.toLowerCase();
+  const entries = Object.entries(editState.deck_setup).filter(([n]) => !q || n.toLowerCase().includes(q));
+  const tag     = activeDropdownTag;
+  let checked   = 0;
+  document.getElementById('td-list').innerHTML = entries.map(([name, data]) => {
+    const has = data.slice(1).includes(tag);
+    if (has) checked++;
+    return '<label class="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-700/50 cursor-pointer transition-colors">' +
+      '<input type="checkbox" ' + (has?'checked':'') +
+             ' onchange=\'toggleTagCard(' + JSON.stringify(name) + ',' + JSON.stringify(tag) + ',this.checked)\'' +
+             ' class="w-4 h-4 rounded accent-yellow-400 cursor-pointer shrink-0" />' +
+      '<span class="text-xs font-bold text-slate-500 w-5 shrink-0 text-right">' + data[0] + 'x</span>' +
+      '<span class="text-sm text-slate-200 leading-snug flex-1">' + escHtml(name) + '</span>' +
+      '</label>';
+  }).join('') || '<div class="px-3 py-4 text-xs text-slate-600 text-center">Nenhuma carta encontrada</div>';
+  document.getElementById('td-count').textContent = checked + ' de ' + entries.length + ' cartas';
+}
+
+function toggleTagCard(cardName, tag, on) {
+  const d = editState.deck_setup[cardName];
+  if (!d) return;
+  if (on && !d.slice(1).includes(tag)) d.push(tag);
+  else if (!on) { const i = d.indexOf(tag); if (i>0) d.splice(i,1); }
+  renderTagDropdownList();
+  renderTagGrid();
+}
+
+function tdSelectAll() {
+  if (!activeDropdownTag) return;
+  const q = document.getElementById('td-search').value.toLowerCase();
+  Object.entries(editState.deck_setup).forEach(([n,d]) => {
+    if (q && !n.toLowerCase().includes(q)) return;
+    if (!d.slice(1).includes(activeDropdownTag)) d.push(activeDropdownTag);
+  });
+  renderTagDropdownList(); renderTagGrid();
+}
+
+function tdClearAll() {
+  if (!activeDropdownTag) return;
+  const q = document.getElementById('td-search').value.toLowerCase();
+  Object.entries(editState.deck_setup).forEach(([n,d]) => {
+    if (q && !n.toLowerCase().includes(q)) return;
+    const i = d.indexOf(activeDropdownTag); if (i>0) d.splice(i,1);
+  });
+  renderTagDropdownList(); renderTagGrid();
+}
+
+function addCustomTagPrompt() {
+  const v = prompt('Nome da nova tag:');
+  if (!v) return;
+  const t = v.trim();
+  if (!t || getAllTags().includes(t)) return;
+  if (!editState.custom_tags) editState.custom_tags = [];
+  editState.custom_tags.push(t);
+  renderTagGrid();
+  setTimeout(() => {
+    const btnId = 'tgbtn-' + t.replace(/[^a-z0-9]/gi,'_');
+    const btn   = document.getElementById(btnId);
+    if (btn) openTagDropdown(t, btn);
+  }, 60);
+}
+
+function removeCustomTag(tag) {
+  if (DEFAULT_TAGS.includes(tag)) return;
+  Object.values(editState.deck_setup).forEach(d => { const i=d.indexOf(tag); if(i>0) d.splice(i,1); });
+  if (editState.custom_tags) { const ci=editState.custom_tags.indexOf(tag); if(ci>=0) editState.custom_tags.splice(ci,1); }
+  renderTagGrid();
+}
+
+/* Close dropdown on outside click */
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('tag-dropdown');
+  if (!dd.classList.contains('hidden') &&
+      !dd.contains(e.target) &&
+      !e.target.closest('[id^="tgbtn-"]')) {
+    closeTagDropdown();
+  }
+});
+
+function addTag(n,t)   { const d=editState.deck_setup[n]; if(!d.slice(1).includes(t)) d.push(t); renderTagGrid(); }
+function removeTag(n,i){ editState.deck_setup[n].splice(1+i,1); renderTagGrid(); }
+
+/* =========================================================
+   PICKER MODAL (Combos & Clumps)
+   ========================================================= */
+let pickerState = null;
+
+function openPicker(mode, rowIdx, negateMode) {
+  negateMode = !!negateMode;
+  pickerState = { mode, rowIdx, negateMode };
+  const isClump = mode === 'clump';
+  document.getElementById('picker-title').textContent =
+    isClump ? (negateMode ? 'Adicionar condição negada (!Tag)' : 'Adicionar item') : 'Adicionar item ao combo';
+  const tags = getAllTags();
+  document.getElementById('picker-tag-chips').innerHTML = tags.map(t => {
+    const c   = tagColor(t);
+    const val = negateMode ? '!' + t : t;
+    return '<button onclick=\'pickerSelectItem(' + JSON.stringify(val) + ')\'' +
+           ' class="tag-chip ' + c.chip + ' hover:opacity-80 cursor-pointer transition-opacity">' +
+           (negateMode ? '!' : '') + escHtml(t) + '</button>';
+  }).join('');
+  document.getElementById('picker-search').value = '';
+  renderPickerList();
+  document.getElementById('modal-picker').classList.remove('hidden');
+}
+
+function closePicker() {
+  pickerState = null;
+  document.getElementById('modal-picker').classList.add('hidden');
+}
+
+function renderPickerList() {
+  if (!pickerState) return;
+  const q   = document.getElementById('picker-search').value.toLowerCase();
+  const neg = pickerState.negateMode;
+  const entries = Object.entries(editState.deck_setup).filter(([n]) => !q || n.toLowerCase().includes(q));
+  document.getElementById('picker-list').innerHTML = entries.map(([name, data]) => {
+    const val = neg ? '!' + name : name;
+    return '<button onclick=\'pickerSelectItem(' + JSON.stringify(val) + ')\'' +
+           ' class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 text-left transition-colors cursor-pointer">' +
+      '<span class="text-xs font-bold text-slate-500 w-5 shrink-0 text-right">' + data[0] + 'x</span>' +
+      '<span class="text-sm text-slate-200 flex-1">' + escHtml(name) + '</span>' +
+      (neg ? '<span class="text-xs text-orange-400 shrink-0">negado</span>' : '') +
+      '</button>';
+  }).join('') || '<div class="px-4 py-4 text-xs text-slate-600 text-center">Nenhuma carta</div>';
+}
+
+function pickerSelectItem(val) {
+  if (!pickerState) return;
+  const { mode, rowIdx } = pickerState;
+  if (mode === 'combo') { editState.combo_patterns[rowIdx].push(val); renderComboRows(); }
+  else                  { editState.clump_rules[rowIdx].push(val);    renderClumpRows(); }
+  closePicker();
+}
+
+/* COMBO PATTERNS */
+function renderComboRows() {
+  const list = editState.combo_patterns;
+  document.getElementById('combo-empty').classList.toggle('hidden', list.length>0);
+  document.getElementById('combo-rows').innerHTML = list.map((p,idx) => {
+    const chips = p.map((item,i) =>
+      '<span class="tag-chip bg-slate-700 text-slate-300 border border-slate-600">' + escHtml(item) +
+      '<button onclick="removeComboItem(' + idx + ',' + i + ')" class="hover:opacity-70 ml-0.5 cursor-pointer">&times;</button></span>'
+    ).join('');
+    return '<div class="px-4 py-3 flex flex-wrap items-center gap-2">' +
+      '<span class="text-xs text-slate-600 w-5 text-right shrink-0">' + (idx+1) + '.</span>' +
+      '<div class="flex flex-wrap gap-1.5 flex-1 items-center">' + chips +
+        '<button onclick="openPicker(\'combo\',' + idx + ',false)"' +
+                ' class="text-xs px-1.5 py-0.5 rounded-lg bg-slate-700 text-yellow-400 border border-slate-600 hover:bg-slate-600 cursor-pointer">+ item</button>' +
+      '</div>' +
+      '<button onclick="removeComboRow(' + idx + ')" class="text-slate-600 hover:text-red-400 text-sm transition-colors ml-auto cursor-pointer">&times;</button>' +
+      '</div>';
+  }).join('');
+}
+function addComboRow()          { editState.combo_patterns.push([]); renderComboRows(); }
+function removeComboRow(i)      { editState.combo_patterns.splice(i,1); renderComboRows(); }
+function removeComboItem(ri,ii) { editState.combo_patterns[ri].splice(ii,1); renderComboRows(); }
+
+/* CLUMP RULES */
+function renderClumpRows() {
+  const list = editState.clump_rules;
+  document.getElementById('clump-empty').classList.toggle('hidden', list.length>0);
+  document.getElementById('clump-rows').innerHTML = list.map((rule,idx) => {
+    const chips = rule.map((item,i) => {
+      const neg = item.startsWith('!');
+      const c   = neg ? 'bg-orange-950/60 text-orange-400 border border-orange-800/50'
+                      : 'bg-slate-700 text-slate-300 border border-slate-600';
+      return '<span class="tag-chip ' + c + '">' + escHtml(item) +
+             '<button onclick="removeClumpItem(' + idx + ',' + i + ')" class="hover:opacity-70 ml-0.5 cursor-pointer">&times;</button></span>';
+    }).join('');
+    return '<div class="px-4 py-3 flex flex-wrap items-center gap-2">' +
+      '<span class="text-xs text-slate-600 w-5 text-right shrink-0">' + (idx+1) + '.</span>' +
+      '<div class="flex flex-wrap gap-1.5 flex-1 items-center">' + chips +
+        '<button onclick="openPicker(\'clump\',' + idx + ',false)"' +
+                ' class="text-xs px-1.5 py-0.5 rounded-lg bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600 cursor-pointer">+ item</button>' +
+        '<button onclick="openPicker(\'clump\',' + idx + ',true)"' +
+                ' class="text-xs px-1.5 py-0.5 rounded-lg bg-orange-950/60 text-orange-400 border border-orange-800/50 hover:opacity-80 cursor-pointer">+ !neg</button>' +
+      '</div>' +
+      '<button onclick="removeClumpRow(' + idx + ')" class="text-slate-600 hover:text-red-400 text-sm transition-colors ml-auto cursor-pointer">&times;</button>' +
+      '</div>';
+  }).join('');
+}
+function addClumpRow()          { editState.clump_rules.push([]); renderClumpRows(); }
+function removeClumpRow(i)      { editState.clump_rules.splice(i,1); renderClumpRows(); }
+function removeClumpItem(ri,ii) { editState.clump_rules[ri].splice(ii,1); renderClumpRows(); }
+/* SAVE / DOWNLOAD */
+function saveDeck() {
+  const name=document.getElementById('inp-deck-name-2').value.trim()||'Meu Deck';
+  editState.name=name;
+  const decks=loadDecks(), now=new Date().toISOString();
+  const fb=document.getElementById('save-feedback');
+  if(editState.id){ const i=decks.findIndex(d=>d.id===editState.id); if(i>=0) decks[i]={...editState,updated_at:now}; else decks.push({...editState,updated_at:now}); }
+  else { editState.id=genId(); editState.created_at=now; editState.updated_at=now; decks.push({...editState}); }
+  saveDecks(decks);
+  fb.textContent='Deck salvo com sucesso!'; fb.className='text-sm text-center py-2 text-green-400'; fb.classList.remove('hidden');
+  setTimeout(()=>fb.classList.add('hidden'),3000);
+}
+
+function downloadDeckJson() {
+  const name=document.getElementById('inp-deck-name-2').value.trim()||'deck';
+  editState.name=name;
+  const blob=new Blob([JSON.stringify({name:editState.name,deck_setup:editState.deck_setup,combo_patterns:editState.combo_patterns,clump_rules:editState.clump_rules},null,2)],{type:'application/json'});
+  const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:name.replace(/[^a-z0-9]/gi,'_').toLowerCase()+'.json'});
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* IMPORT JSON MODAL */
+function showImportJson()  { document.getElementById('modal-import-json').classList.remove('hidden'); }
+function closeImportJson() { document.getElementById('modal-import-json').classList.add('hidden'); }
+function doImportJson() {
+  const file=document.getElementById('inp-import-file').files[0];
+  const err=document.getElementById('import-json-error'); err.classList.add('hidden');
+  if(!file){ err.textContent='Selecione um arquivo .json.'; err.classList.remove('hidden'); return; }
+  const r=new FileReader();
+  r.onload=e=>{
+    try {
+      const data=JSON.parse(e.target.result);
+      if(!data.deck_setup||typeof data.deck_setup!=='object') throw new Error('Formato invalido: deck_setup nao encontrado.');
+      const now=new Date().toISOString();
+      saveDecks([...loadDecks(),{id:genId(),name:data.name||file.name.replace(/\.json$/i,''),deck_setup:data.deck_setup,combo_patterns:data.combo_patterns||[],clump_rules:data.clump_rules||[],created_at:now,updated_at:now}]);
+      closeImportJson(); renderDeckList();
+    } catch(ex){ err.textContent=ex.message; err.classList.remove('hidden'); }
+  };
+  r.readAsText(file);
+}
+
+/* SIMULATE */
+let currentDeck=null;
+function startSimulate(id) {
+  currentDeck=loadDecks().find(d=>d.id===id); if(!currentDeck) return;
+  document.getElementById('sim-deck-name').textContent=currentDeck.name;
+  document.getElementById('sim-stats').classList.add('hidden');
+  document.getElementById('deck-composition').classList.add('hidden');
+  document.getElementById('error-box').classList.add('hidden');
+  setSimState('empty'); showView('view-simulate'); runSimulation();
+}
+function setSimState(s) {
+  document.getElementById('sim-loading').classList.toggle('hidden',s!=='loading');
+  document.getElementById('sim-results').classList.toggle('hidden',s!=='results');
+  document.getElementById('sim-empty').classList.toggle('hidden',s!=='empty');
+}
+function switchTab(n) {
+  ['5','6'].forEach(t=>{
+    document.getElementById(`tab-${t}`).classList.toggle('hidden',t!==n);
+    const b=document.getElementById(`tab-btn-${t}`);
+    b.classList.toggle('bg-slate-700',t===n); b.classList.toggle('text-slate-100',t===n); b.classList.toggle('text-slate-500',t!==n);
   });
 }
-
-/* ──────────────────────────────────────
-   RENDER RESULTS
-────────────────────────────────────── */
-function render(data, deckSetup) {
-  const ref = data.hand_5.min_techs_0;
-  document.getElementById('s-deck').textContent  = ref.deck_size;
-  document.getElementById('s-hands').textContent = ref.hands_analyzed.toLocaleString('en-US');
-
-  for (const [n, hand] of [['5', data.hand_5], ['6', data.hand_6_if_playable]]) {
-    document.getElementById(`grid-${n}`).innerHTML =
-      [0, 1, 2].map(i => metricCard(i, hand[`min_techs_${i}`])).join('');
-    document.getElementById(`clumps-${n}`).innerHTML =
-      clumpsSection(hand.min_techs_0.clumps);
-  }
-
-  renderDeckComposition(deckSetup);
-  setState('results');
-  switchTab('5');
-  setTimeout(animateBars, 60);
-}
-
-/* ──────────────────────────────────────
-   SIMULATE
-────────────────────────────────────── */
 async function runSimulation() {
-  const btn    = document.getElementById('btn-run');
-  const errBox = document.getElementById('error-box');
-  errBox.style.display = 'none';
-
-  let deck, combos, clumps;
-
+  if(!currentDeck) return;
+  const btn=document.getElementById('btn-run'), err=document.getElementById('error-box');
+  err.classList.add('hidden'); btn.disabled=true; btn.textContent='...'; setSimState('loading');
+  const iters=parseInt(document.getElementById('inp-iter').value)||100000;
   try {
-    const raw = document.getElementById('inp-deck').value.trim();
-    if (!raw) throw new Error('Deck Setup is required');
-    deck = JSON.parse(raw);
-  } catch (e) {
-    errBox.innerHTML = '❌ <strong>Deck Setup:</strong> ' + e.message;
-    errBox.style.display = 'block'; return;
-  }
-
-  try {
-    const raw = document.getElementById('inp-combos').value.trim();
-    combos = raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    errBox.innerHTML = '❌ <strong>Combo Patterns:</strong> ' + e.message;
-    errBox.style.display = 'block'; return;
-  }
-
-  try {
-    const raw = document.getElementById('inp-clumps').value.trim();
-    clumps = raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    errBox.innerHTML = '❌ <strong>Clump Rules:</strong> ' + e.message;
-    errBox.style.display = 'block'; return;
-  }
-
-  const iterations = parseInt(document.getElementById('inp-iter').value) || 100000;
-
-  btn.disabled = true;
-  btn.textContent = '⏳ Simulating...';
-  setState('loading');
-
-  try {
-    const res = await fetch('/simulate/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        deck_setup: deck,
-        combo_patterns: combos,
-        clump_rules: clumps,
-        min_techs: 0,
-        iterations,
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.detail ?? 'Unknown error');
-    render(json, deck);
-  } catch (e) {
-    setState('empty');
-    errBox.innerHTML = '❌ ' + e.message;
-    errBox.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '▶ Simulate';
-  }
+    const res=await fetch('/simulate/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_setup:currentDeck.deck_setup,combo_patterns:currentDeck.combo_patterns||[],clump_rules:currentDeck.clump_rules||[],min_techs:0,iterations:iters})});
+    const json=await res.json(); if(!res.ok) throw new Error(json.detail||'Erro desconhecido');
+    const ref=json.hand_5.min_techs_0;
+    document.getElementById('s-deck').textContent=ref.deck_size;
+    document.getElementById('s-hands').textContent=ref.hands_analyzed.toLocaleString('pt-BR');
+    document.getElementById('sim-stats').classList.remove('hidden');
+    for(const [n,hand] of [['5',json.hand_5],['6',json.hand_6_if_playable]]) {
+      document.getElementById(`grid-${n}`).innerHTML=[0,1,2].map(i=>metricCard(i,hand[`min_techs_${i}`])).join('');
+      document.getElementById(`clumps-${n}`).innerHTML=clumpsSection(hand.min_techs_0.clumps);
+    }
+    renderDeckComposition(currentDeck.deck_setup); setSimState('results'); switchTab('5'); setTimeout(animateBars,60);
+  } catch(e) { setSimState('empty'); err.innerHTML='Error: '+escHtml(e.message); err.classList.remove('hidden'); }
+  finally { btn.disabled=false; btn.textContent='Simular'; }
 }
 
-/* ──────────────────────────────────────
-   EXAMPLE (Branded Despia)
-────────────────────────────────────── */
-function loadExample() {
-  document.getElementById('inp-deck').value = JSON.stringify({
-    "Aluber":              [2, "NS", "AlvoCartesia", "Starter"],
-    "Cartesia":            [2, "NS", "AlvoSpirits", "AlvoCartesia"],
-    "Fuwalos":             [3, "AlvoSpirits", "Tech"],
-    "White Dragon":        [2, "AlvoCartesia", "AlvoSpirits", "Extender", "Starter"],
-    "Incredible Ecclesia": [2, "NS", "AlvoCartesia", "AlvoSpirits", "Starter"],
-    "Dogmatika Ecclesia":  [1, "NS", "AlvoCartesia", "AlvoSpirits", "Starter"],
-    "Quem":                [1, "NS", "AlvoCartesia", "AlvoSpirits", "Brick"],
-    "Albaz":               [1, "AlvoCartesia", "AlvoSpirits", "Brick"],
-    "Albion Shrouded":     [1, "AlvoCartesia", "AlvoSpirits", "Brick"],
-    "Magnamhut":           [1, "AlvoCartesia", "AlvoSpirits", "Tech"],
-    "Mercourier":          [1, "AlvoCartesia", "AlvoSpirits", "Brick"],
-    "Droll":               [2, "Tech", "AlvoSpirits"],
-    "Lava Golem":          [3, "Tech", "AlvoSpirits"],
-    "Bolota":              [3, "Tech", "AlvoSpirits"],
-    "High Spirits":        [3],
-    "Nadir Servant":       [3, "Starter", "Extender"],
-    "Gold Sarcophagus":    [1, "Starter", "Extender"],
-    "Branded Fusion":      [1, "Starter", "Extender"],
-    "Branded Opening":     [2, "Starter", "Extender"],
-    "Super Polymerization":[3, "Tech"],
-    "Fallen & Virtuous":   [3, "Tech"]
-  }, null, 2);
-
-  document.getElementById('inp-combos').value = JSON.stringify([
-    ["Quem", "Albion Shrouded"],
-    ["Quem", "Magnamhut"],
-    ["Quem", "Fallen & Virtuous"],
-    ["Mercourier", "Magnamhut"],
-    ["Cartesia", "AlvoCartesia"],
-    ["High Spirits", "AlvoSpirits"]
-  ], null, 2);
-
-  document.getElementById('inp-clumps').value = JSON.stringify([
-    ["Mercourier", "Gold Sarcophagus"],
-    ["Lava Golem", "!Extender"],
-    ["Bolota", "!Extender"]
-  ], null, 2);
+/* METRIC CARD */
+function metricCard(tl,data) {
+  const metrics=[
+    {key:'success_rate',   label:'Success Rate', color:'text-emerald-400',bar:'bg-emerald-500'},
+    {key:'good_hand_rate', label:'Good Hand',    color:'text-sky-400',    bar:'bg-sky-500'    },
+    {key:'resilience_rate',label:'Resilience',   color:'text-violet-400', bar:'bg-violet-500' },
+    {key:'dead_hand_rate', label:'Dead Hand',    color:'text-rose-400',   bar:'bg-rose-500'   },
+  ];
+  const rows=metrics.map(m=>{const v=data[m.key]??0,bw=Math.min(v,100); return `
+    <div class="space-y-1">
+      <div class="flex justify-between items-baseline">
+        <span class="text-xs text-slate-400">${m.label}</span>
+        <span class="text-xs font-bold ${m.color}">${v}%</span>
+      </div>
+      <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+        <div class="h-full ${m.bar} bar rounded-full" style="width:0" data-w="${bw}"></div>
+      </div>
+    </div>`;}).join('');
+  const lbl=tl===0?'No Tech Req':`Min ${tl} Tech${tl>1?'s':''}`;
+  return `<div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-3">
+    <div class="text-xs font-semibold text-slate-300 uppercase tracking-wider">${lbl}</div>${rows}</div>`;
 }
+
+/* CLUMPS */
+function clumpsSection(clumps) {
+  if(!clumps||!clumps.length) return '';
+  const rows=clumps.map(c=>{
+    const bw=Math.min(c.percentage,100);
+    const pc=c.percentage>20?'text-rose-400':c.percentage>10?'text-orange-400':'text-slate-400';
+    const bc=c.percentage>20?'bg-rose-500': c.percentage>10?'bg-orange-500': 'bg-slate-600';
+    const lbl=c.rule.map(r=>r.startsWith('!')?`no ${r.slice(1)}`:r).join(' + ');
+    return `<div class="flex items-center gap-3 px-4 py-2.5">
+      <div class="flex-1 min-w-0">
+        <div class="text-xs text-slate-300 font-medium truncate">${escHtml(lbl)}</div>
+        <div class="mt-1 h-1 bg-slate-700 rounded-full overflow-hidden"><div class="h-full ${bc} bar rounded-full" style="width:0" data-w="${bw}"></div></div>
+      </div>
+      <div class="text-right shrink-0">
+        <div class="text-sm font-bold ${pc}">${c.percentage}%</div>
+        <div class="text-xs text-slate-500">${c.count.toLocaleString('pt-BR')} maos</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+    <h3 class="px-4 py-3 text-xs font-semibold text-slate-300 uppercase tracking-wide border-b border-slate-700">Clumps &amp; Conflicts</h3>${rows}</div>`;
+}
+
+/* DECK COMPOSITION BANNER */
+function renderDeckComposition(ds) {
+  const tc={};let total=0;
+  for(const[,d] of Object.entries(ds)){ const qty=d[0],tags=d.slice(1); total+=qty; const s=tags.includes('Starter'),x=tags.includes('Extender'); if(s&&x){tc['Starter/Extender']=(tc['Starter/Extender']||0)+qty;}else{for(const t of tags)tc[t]=(tc[t]||0)+qty;} }
+  const RO=['Starter','Extender','Starter/Extender','Tech','Brick','Normal Summon','NS'];
+  const sorted=[...RO.filter(t=>tc[t]!==undefined),...Object.keys(tc).filter(t=>!RO.includes(t)).sort()];
+  const pills=sorted.map(tag=>{const c=tagColor(tag); return `<div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full ${c.dot} shrink-0"></span><span class="${c.text} font-bold">${tc[tag]}</span><span class="text-slate-500 text-xs">${escHtml(tag)}</span></div>`;}).join('<span class="text-slate-700 hidden sm:block">|</span>');
+  const el=document.getElementById('deck-composition');
+  el.innerHTML=`<div class="flex items-center gap-1.5 shrink-0"><span class="text-slate-400">&#128202;</span><span class="font-bold text-slate-200">${total}</span><span class="text-slate-500">total</span></div><span class="text-slate-700 hidden sm:block">|</span>${pills}`;
+  el.classList.remove('hidden');
+}
+
+/* ANIMATE BARS */
+function animateBars() { requestAnimationFrame(()=>{ document.querySelectorAll('.bar[data-w]').forEach(el=>requestAnimationFrame(()=>{el.style.width=el.dataset.w+'%';})); }); }
+
+/* HELPERS */
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* BOOT */
+showDeckList();
 </script>
-
 </body>
 </html>
