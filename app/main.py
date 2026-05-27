@@ -1,4 +1,10 @@
 import re
+import sys
+import os
+
+_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _DIR)
+
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -55,7 +61,7 @@ class SimulationResponse(BaseModel):
 
 @app.get("/", include_in_schema=False)
 def root():
-    return FileResponse("static/index.html")
+    return FileResponse(os.path.join(_DIR, "static", "index.html"))
 
 
 @app.get("/health")
@@ -102,7 +108,7 @@ def simulate_batch(req: SimulationRequest):
     return results
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=os.path.join(_DIR, "static")), name="static")
 
 
 # ──────────────────────────────────────
